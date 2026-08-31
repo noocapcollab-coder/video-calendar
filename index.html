@@ -41,11 +41,18 @@ select{background:var(--panel);border:1px solid var(--line2);color:var(--tx);bor
 .cell.pastday{opacity:.5}
 .cell.other{opacity:.25}
 .cell.today{border-color:var(--accent)}
+.cell.sel{background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line2)}
+.cell{cursor:pointer}
 .dnum{font-size:11px;color:var(--tx3);margin-bottom:4px;display:flex;align-items:center;gap:5px}
 .today .dnum b{background:var(--accent);color:#06121f;border-radius:99px;padding:1px 7px;font-weight:600}
 .pill{font-size:10.5px;border-radius:4px;padding:3px 5px;margin-bottom:3px;display:flex;gap:4px;align-items:center;cursor:pointer;border:1px solid transparent}
 .today-panel{background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:14px 16px;margin-bottom:18px}
 .today-panel h2{margin:0 0 3px;font-size:15px;font-weight:600}
+.daynav{display:flex;align-items:center;gap:7px;margin-left:auto}
+.daynav button{background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit;font-size:13px;line-height:1.2}
+.daynav button:hover{border-color:var(--accent)}
+.daynav button.flat{background:none;color:var(--tx2)}
+.phead{display:flex;align-items:flex-start;gap:12px;margin-bottom:8px}
 .today-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
 .today-row .num{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;border-radius:4px;padding:2px 7px;flex:none}
 .today-row .ttl{font-size:13.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -131,7 +138,7 @@ a{color:var(--accent)}
 
 <script>
 const S = {
-  data: null, month: null, creator: 'all', editor: 'all',
+  data: null, month: null, day: null, creator: 'all', editor: 'all',
   expanded: {}
 };
 const STAGE = {1:'Idea assigned',2:'Waiting for brief',3:'Transcript',4:'Script draft',5:'Script approval',6:'To film',7:'In edit',8:'Changes',9:'Approval',10:'To post',11:'Ready',12:'Posted',13:'Repost'};
@@ -154,6 +161,7 @@ async function load(fresh){
     if(j.error) throw new Error(j.error);
     S.data = j;
     if(!S.month){ const t = new Date(j.today+'T00:00:00'); S.month = new Date(t.getFullYear(), t.getMonth(), 1); }
+    if(!S.day) S.day = j.today;
     document.getElementById('sync').textContent = 'synced '+new Date().toLocaleTimeString();
     document.getElementById('errbox').innerHTML = (j.errors&&j.errors.length)
       ? '<div class="err"><b>'+j.errors.length+' board(s) failed to load.</b><br>'+j.errors.map(esc).join('<br>')+'</div>' : '';
@@ -197,26 +205,65 @@ function pillHTML(v){
 const RISKVAR = {ready:'--ready',ok:'--ok',tight:'--tight',risk:'--risk',late:'--late',posted:'--posted'};
 const RISKBG = {ready:'--readybg',ok:'--okbg',tight:'--tightbg',risk:'--riskbg',late:'--latebg',posted:'--postedbg'};
 
-function renderToday(vids){
+function shiftDay(ds, n){
+  const d = new Date(ds+'T00:00:00');
+  d.setDate(d.getDate()+n);
+  return iso(d);
+}
+
+function dayLabel(ds, today){
+  if(ds===today) return 'Posting today';
+  if(ds===shiftDay(today,1)) return 'Posting tomorrow';
+  if(ds===shiftDay(today,-1)) return 'Posted yesterday';
+  return (ds<today?'Posted on':'Posting on')+' '+
+    new Date(ds+'T00:00:00').toLocaleDateString('en',{weekday:'long',day:'numeric',month:'long'});
+}
+
+function verdict(v, isPast){
+  if(v.risk==='posted') return 'posted';
+  if(v.risk==='late') return 'not posted yet';
+  if(v.risk==='ready') return isPast ? 'was ready' : 'ready to post';
+  if(v.risk==='risk') return 'not ready';
+  return 'in '+(STAGE[v.stage]||v.status||'progress').toLowerCase();
+}
+
+function renderDay(vids){
   const today = S.data.today;
-  const list = vids.filter(v=>v.date===today).sort((a,b)=>(b.sponsor?1:0)-(a.sponsor?1:0));
-  const d = new Date(today+'T00:00:00');
-  const head = d.toLocaleDateString('en',{weekday:'long',day:'numeric',month:'long'});
-  let html = '<h2>Posting today</h2><div class="muted" style="margin-bottom:8px">'+head+
-    ' · '+list.length+' video'+(list.length===1?'':'s')+'</div>';
+  const ds = S.day;
+  const isPast = ds < today;
+  const list = vids.filter(v=>v.date===ds).sort((a,b)=>(b.sponsor?1:0)-(a.sponsor?1:0));
+  const full = new Date(ds+'T00:00:00').toLocaleDateString('en',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  let html = '<div class="phead"><div>'+
+    '<h2>'+dayLabel(ds,today)+'</h2>'+
+    '<div class="muted">'+full+' \u00b7 '+list.length+' video'+(list.length===1?'':'s')+'</div></div>'+
+    '<div class="daynav">'+
+      '<button data-step="-1" title="Previous day">\u2039</button>'+
+      (ds===today?'':'<button class="flat" data-step="today">Today</button>')+
+      '<button data-step="1" title="Next day">\u203a</button>'+
+    '</div></div>';
+
   if(!list.length){
-    html += '<div class="today-row" style="color:var(--tx3)">Nothing scheduled to go out today.</div>';
+    html += '<div class="today-row" style="color:var(--tx3)">Nothing '+(isPast?'was':'is')+' scheduled for this day.</div>';
   } else {
     html += list.map(v=>
       '<div class="today-row" data-id="'+v.id+'" style="cursor:pointer">'+
-      '<span class="num" style="background:var('+RISKBG[v.risk]+');color:var('+RISKVAR[v.risk]+')">'+(v.stage===null?'–':v.stage)+'</span>'+
-      '<span class="ttl">'+esc(v.creator)+' · '+esc(v.title)+'</span>'+
+      '<span class="num" style="background:var('+RISKBG[v.risk]+');color:var('+RISKVAR[v.risk]+')">'+(v.stage===null?'\u2013':v.stage)+'</span>'+
+      '<span class="ttl">'+esc(v.creator)+' \u00b7 '+esc(v.title)+'</span>'+
       (v.sponsor?'<span class="spon">Sponsor</span>':'')+
-      '<span class="meta" style="color:var('+RISKVAR[v.risk]+')">'+
-        (v.risk==='ready'?'ready to post':v.risk==='posted'?'posted':v.risk==='risk'?'not ready':'in '+(STAGE[v.stage]||v.status).toLowerCase())+
-      '</span></div>').join('');
+      '<span class="meta" style="color:var('+RISKVAR[v.risk]+')">'+verdict(v,isPast)+'</span>'+
+      '</div>').join('');
   }
   document.getElementById('todaypanel').innerHTML = html;
+}
+
+function goToDay(ds){
+  S.day = ds;
+  const d = new Date(ds+'T00:00:00');
+  if(d.getMonth()!==S.month.getMonth() || d.getFullYear()!==S.month.getFullYear()){
+    S.month = new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+  render();
 }
 
 function render(){
@@ -224,7 +271,7 @@ function render(){
   renderChips();
   const vids = visible();
   const today = S.data.today;
-  renderToday(vids);
+  renderDay(vids);
   const byDate = {};
   vids.forEach(v=>{ (byDate[v.date] = byDate[v.date]||[]).push(v); });
 
@@ -255,7 +302,7 @@ function render(){
     const cap = S.expanded[ds] ? list.length : 3;
     let inner = list.slice(0,cap).map(pillHTML).join('');
     if(list.length>cap) inner += '<div class="more" data-more="'+ds+'">+'+(list.length-cap)+' more</div>';
-    html += '<div class="cell'+(other?' other':'')+(past?' pastday':'')+(isToday?' today':'')+'" data-day="'+ds+'">'+
+    html += '<div class="cell'+(other?' other':'')+(past?' pastday':'')+(isToday?' today':'')+(ds===S.day?' sel':'')+'" data-day="'+ds+'">'+
       '<div class="dnum">'+(isToday?'<b>'+d.getDate()+'</b>':d.getDate())+'</div>'+inner+'</div>';
     if(i>=34 && d.getMonth()!==m) break;
   }
@@ -292,12 +339,19 @@ function showDetail(v){
 }
 
 document.addEventListener('click', e=>{
+  const step = e.target.closest('[data-step]');
+  if(step){
+    const v = step.dataset.step;
+    return goToDay(v==='today' ? S.data.today : shiftDay(S.day, parseInt(v,10)));
+  }
   const chip = e.target.closest('.chip');
   if(chip){ S.creator = chip.dataset.c; return render(); }
   const more = e.target.closest('[data-more]');
   if(more){ S.expanded[more.dataset.more]=true; return render(); }
   const pill = e.target.closest('.pill, .today-row[data-id]');
   if(pill){ const v = findVideo(pill.dataset.id); if(v) showDetail(v); return; }
+  const cell = e.target.closest('.cell[data-day]');
+  if(cell){ return goToDay(cell.dataset.day); }
 });
 
 document.getElementById('editorsel').addEventListener('change', e=>{
