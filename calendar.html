@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOOCAP — Posting calendar</title>
+<style>
+:root{
+  --bg:#0c0d10; --panel:#131519; --panel2:#171a1f; --line:#23262d; --line2:#31353e;
+  --tx:#e8eaed; --tx2:#9aa0aa; --tx3:#6b717b;
+  --ok:#4d94ff; --okbg:#132338;
+  --ready:#3ecf8e; --readybg:#10291f;
+  --tight:#e0a336; --tightbg:#2b2010;
+  --risk:#f0645f; --riskbg:#2f1414;
+  --late:#c77dff; --latebg:#251a33;
+  --posted:#5a5f68; --postedbg:#191b1f;
+  --accent:#4d94ff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;padding:20px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:17px;font-weight:600;margin:0}
+.bar{display:flex;align-items:center;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
+select{background:var(--panel);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:5px 9px;font:inherit;font-size:12.5px;cursor:pointer}
+.flabel{font-size:11.5px;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 13px}
+.stat .l{font-size:11.5px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em}
+.stat .n{font-size:23px;font-weight:600;margin-top:3px}
+.stat.risk{border-color:#4a2222}.stat.risk .l,.stat.risk .n{color:var(--risk)}
+.stat.late{border-color:#3d2a4d}.stat.late .l,.stat.late .n{color:var(--late)}
+.nav{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.nav button{background:var(--panel);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:5px 10px;cursor:pointer;font:inherit;font-size:13px}
+.month{font-size:16px;font-weight:600;min-width:170px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
+.chip{font-size:11.5px;padding:4px 10px;border-radius:99px;border:1px solid var(--line2);color:var(--tx2);cursor:pointer;background:none;font:inherit}
+.chip.on{background:var(--panel2);color:var(--tx);border-color:var(--line2);font-weight:600}
+.dow{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;font-size:11px;color:var(--tx3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:7px;min-height:104px;padding:5px}
+.cell.pastday{opacity:.5}
+.cell.other{opacity:.25}
+.cell.today{border-color:var(--accent)}
+.dnum{font-size:11px;color:var(--tx3);margin-bottom:4px;display:flex;align-items:center;gap:5px}
+.today .dnum b{background:var(--accent);color:#06121f;border-radius:99px;padding:1px 7px;font-weight:600}
+.pill{font-size:10.5px;border-radius:4px;padding:3px 5px;margin-bottom:3px;display:flex;gap:4px;align-items:center;cursor:pointer;border:1px solid transparent}
+.today-panel{background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:14px 16px;margin-bottom:18px}
+.today-panel h2{margin:0 0 3px;font-size:15px;font-weight:600}
+.today-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.today-row .num{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;border-radius:4px;padding:2px 7px;flex:none}
+.today-row .ttl{font-size:13.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.today-row .meta{margin-left:auto;font-size:12px;color:var(--tx2);white-space:nowrap;flex:none}
+.spon{font-size:10px;background:var(--okbg);color:var(--accent);padding:2px 7px;border-radius:4px;flex:none}
+.pill .s{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;flex:none}
+.pill .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill.sponsor{border-left:3px solid var(--accent);border-radius:0 4px 4px 0}
+.r-ok{background:var(--okbg);color:#a9c9f5}
+.r-ready{background:var(--readybg);color:var(--ready)}
+.r-tight{background:var(--tightbg);color:var(--tight)}
+.r-risk{background:var(--riskbg);color:var(--risk)}
+.r-late{background:var(--latebg);color:var(--late)}
+.r-posted{background:var(--postedbg);color:var(--posted)}
+.more{font-size:10.5px;color:var(--tx3);cursor:pointer;padding:2px 5px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--tx2);margin:16px 0}
+.sw{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:-1px;margin-right:5px}
+.detail{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:13px 15px;margin-top:14px;font-size:13px;color:var(--tx3);min-height:52px}
+.tray{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:13px 15px;margin-top:16px}
+.tray h3{margin:0 0 10px;font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center}
+.tray h3 span{color:var(--tx3);font-weight:400}
+.tp{display:inline-flex;gap:5px;align-items:center;font-size:11.5px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;padding:4px 9px;margin:0 5px 5px 0;color:var(--tx2);cursor:pointer}
+.tp b{color:var(--tx);font-weight:600}
+.agenda{display:none}
+.aday{border-bottom:1px solid var(--line);padding:11px 0}
+.aday .h{font-size:12px;color:var(--tx2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.err{background:#2f1414;border:1px solid #4a2222;color:#f3a29f;border-radius:7px;padding:10px 13px;margin-bottom:14px;font-size:12.5px}
+.muted{color:var(--tx3);font-size:12px}
+a{color:var(--accent)}
+@media(max-width:760px){
+  body{padding:12px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .dow,.grid{display:none}
+  .agenda{display:block}
+  .chips{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="bar">
+  <h1>Posting calendar</h1>
+  <span class="muted">read-only · post dates are set in Notion</span>
+  <div style="margin-left:auto" class="muted" id="sync">loading…</div>
+</div>
+
+<div id="errbox"></div>
+
+<div class="today-panel" id="todaypanel"></div>
+
+<div class="stats">
+  <div class="stat"><div class="l">Posting this week</div><div class="n" id="s-week">–</div></div>
+  <div class="stat risk"><div class="l">At risk</div><div class="n" id="s-risk">–</div></div>
+  <div class="stat late"><div class="l">Ready, past date</div><div class="n" id="s-late">–</div></div>
+  <div class="stat"><div class="l">Unscheduled</div><div class="n" id="s-uns">–</div></div>
+</div>
+
+<div class="nav">
+  <button id="prev">‹</button>
+  <div class="month" id="mlabel"></div>
+  <button id="next">›</button>
+  <button id="todaybtn">Today</button>
+  <div style="display:flex;align-items:center;gap:7px;margin-left:auto">
+    <span class="flabel">Editor</span>
+    <select id="editorsel"><option value="all">All editors</option></select>
+  </div>
+</div>
+<div class="chips" id="chips" style="margin-bottom:12px"></div>
+
+<div class="dow"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
+<div class="grid" id="grid"></div>
+<div class="agenda" id="agenda"></div>
+
+<div class="detail" id="detail">Tap a card to see why it's flagged.</div>
+
+<div class="legend">
+  <span><i class="sw" style="background:var(--ready)"></i>Ready</span>
+  <span><i class="sw" style="background:var(--ok)"></i>On track</span>
+  <span><i class="sw" style="background:var(--tight)"></i>Tight</span>
+  <span><i class="sw" style="background:var(--risk)"></i>At risk</span>
+  <span><i class="sw" style="background:var(--late)"></i>Ready, past date</span>
+  <span><i class="sw" style="background:var(--posted)"></i>Posted</span>
+  <span style="border-left:3px solid var(--accent);padding-left:6px">Sponsor</span>
+  <span class="muted">Number = Notion stage</span>
+</div>
+
+<div class="tray">
+  <h3>Unscheduled <span id="uns-n"></span></h3>
+  <div id="tray"></div>
+</div>
+
+</div>
+
+<script>
+const S = {
+  data: null, month: null, creator: 'all', editor: 'all',
+  expanded: {}
+};
+const STAGE = {1:'Idea assigned',2:'Waiting for brief',3:'Transcript',4:'Script draft',5:'Script approval',6:'To film',7:'In edit',8:'Changes',9:'Approval',10:'To post',11:'Ready',12:'Posted',13:'Repost'};
+const WHY = {
+  ready:'Edit is signed off, just waiting on the post date.',
+  ok:'On track, comfortable lead time for the stage it is in.',
+  tight:'Moving, but it needs to clear edit soon to hold this date.',
+  risk:'Too early in the pipeline to realistically make this date.',
+  late:'Finished but the post date has passed, so it may not have gone live.',
+  posted:'Posted, nothing outstanding.'
+};
+const pad = n => String(n).padStart(2,'0');
+const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function load(fresh){
+  try{
+    const r = await fetch('/api/calendar'+(fresh?'?fresh=1':''));
+    const j = await r.json();
+    if(j.error) throw new Error(j.error);
+    S.data = j;
+    if(!S.month){ const t = new Date(j.today+'T00:00:00'); S.month = new Date(t.getFullYear(), t.getMonth(), 1); }
+    document.getElementById('sync').textContent = 'synced '+new Date().toLocaleTimeString();
+    document.getElementById('errbox').innerHTML = (j.errors&&j.errors.length)
+      ? '<div class="err"><b>'+j.errors.length+' board(s) failed to load.</b><br>'+j.errors.map(esc).join('<br>')+'</div>' : '';
+    render();
+  }catch(e){
+    document.getElementById('sync').textContent = 'offline — retrying';
+    document.getElementById('errbox').innerHTML = '<div class="err">Could not reach the API. '+esc(e.message)+'</div>';
+  }
+}
+
+function visible(){
+  if(!S.data) return [];
+  return S.data.videos.filter(v=>{
+    if(S.creator!=='all' && v.creator!==S.creator) return false;
+    if(S.editor!=='all' && v.editor!==S.editor) return false;
+    return true;
+  });
+}
+
+function renderChips(){
+  document.getElementById('chips').innerHTML =
+    '<button class="chip'+(S.creator==='all'?' on':'')+'" data-c="all">All creators</button>'+
+    S.data.creators.map(c=>'<button class="chip'+(S.creator===c.creator?' on':'')+'" data-c="'+esc(c.creator)+'">'+esc(c.creator)+'</button>').join('');
+  const sel = document.getElementById('editorsel');
+  const want = '<option value="all">All editors</option>'+
+    S.data.editors.map(e=>'<option value="'+esc(e)+'">'+esc(e)+'</option>').join('');
+  if(sel.innerHTML!==want) sel.innerHTML = want;
+  sel.value = S.editor;
+}
+
+function pillHTML(v){
+  return '<div class="pill r-'+v.risk+(v.sponsor?' sponsor':'')+'" data-id="'+v.id+'">'+
+    '<span class="s">'+(v.stage===null?'–':v.stage)+'</span>'+
+    '<span class="t">'+esc(v.key)+' '+esc(v.title)+'</span></div>';
+}
+
+const RISKVAR = {ready:'--ready',ok:'--ok',tight:'--tight',risk:'--risk',late:'--late',posted:'--posted'};
+const RISKBG = {ready:'--readybg',ok:'--okbg',tight:'--tightbg',risk:'--riskbg',late:'--latebg',posted:'--postedbg'};
+
+function renderToday(vids){
+  const today = S.data.today;
+  const list = vids.filter(v=>v.date===today).sort((a,b)=>(b.sponsor?1:0)-(a.sponsor?1:0));
+  const d = new Date(today+'T00:00:00');
+  const head = d.toLocaleDateString('en',{weekday:'long',day:'numeric',month:'long'});
+  let html = '<h2>Posting today</h2><div class="muted" style="margin-bottom:8px">'+head+
+    ' · '+list.length+' video'+(list.length===1?'':'s')+'</div>';
+  if(!list.length){
+    html += '<div class="today-row" style="color:var(--tx3)">Nothing scheduled to go out today.</div>';
+  } else {
+    html += list.map(v=>
+      '<div class="today-row" data-id="'+v.id+'" style="cursor:pointer">'+
+      '<span class="num" style="background:var('+RISKBG[v.risk]+');color:var('+RISKVAR[v.risk]+')">'+(v.stage===null?'–':v.stage)+'</span>'+
+      '<span class="ttl">'+esc(v.creator)+' · '+esc(v.title)+'</span>'+
+      (v.sponsor?'<span class="spon">Sponsor</span>':'')+
+      '<span class="meta" style="color:var('+RISKVAR[v.risk]+')">'+
+        (v.risk==='ready'?'ready to post':v.risk==='posted'?'posted':v.risk==='risk'?'not ready':'in '+(STAGE[v.stage]||v.status).toLowerCase())+
+      '</span></div>').join('');
+  }
+  document.getElementById('todaypanel').innerHTML = html;
+}
+
+function render(){
+  if(!S.data) return;
+  renderChips();
+  const vids = visible();
+  const today = S.data.today;
+  renderToday(vids);
+  const byDate = {};
+  vids.forEach(v=>{ (byDate[v.date] = byDate[v.date]||[]).push(v); });
+
+  const t = new Date(today+'T00:00:00');
+  const dow = (t.getDay()+6)%7;
+  const wkStart = new Date(t); wkStart.setDate(t.getDate()-dow);
+  const wkEnd = new Date(wkStart); wkEnd.setDate(wkStart.getDate()+6);
+  const inWeek = vids.filter(v=> v.date>=iso(wkStart) && v.date<=iso(wkEnd)).length;
+  document.getElementById('s-week').textContent = inWeek;
+  document.getElementById('s-risk').textContent = vids.filter(v=>v.risk==='risk').length;
+  document.getElementById('s-late').textContent = vids.filter(v=>v.risk==='late').length;
+  document.getElementById('s-uns').textContent = S.data.unscheduled.length;
+
+  const y = S.month.getFullYear(), m = S.month.getMonth();
+  document.getElementById('mlabel').textContent =
+    S.month.toLocaleString('en',{month:'long'})+' '+y;
+
+  const first = new Date(y,m,1);
+  const lead = (first.getDay()+6)%7;
+  const start = new Date(y,m,1-lead);
+  let html = '';
+  for(let i=0;i<42;i++){
+    const d = new Date(start); d.setDate(start.getDate()+i);
+    const ds = iso(d);
+    const other = d.getMonth()!==m;
+    const isToday = ds===today;
+    const past = ds<today && !isToday;
+    const list = (byDate[ds]||[]).slice().sort((a,b)=>(a.stage||0)-(b.stage||0));
+    const cap = S.expanded[ds] ? list.length : 3;
+    let inner = list.slice(0,cap).map(pillHTML).join('');
+    if(list.length>cap) inner += '<div class="more" data-more="'+ds+'">+'+(list.length-cap)+' more</div>';
+    html += '<div class="cell'+(other?' other':'')+(past?' pastday':'')+(isToday?' today':'')+'" data-day="'+ds+'">'+
+      '<div class="dnum">'+(isToday?'<b>'+d.getDate()+'</b>':d.getDate())+'</div>'+inner+'</div>';
+    if(i>=34 && d.getMonth()!==m) break;
+  }
+  document.getElementById('grid').innerHTML = html;
+
+  const upcoming = vids.filter(v=>v.date>=today).sort((a,b)=>a.date<b.date?-1:1).slice(0,40);
+  const groups = {};
+  upcoming.forEach(v=>{(groups[v.date]=groups[v.date]||[]).push(v);});
+  document.getElementById('agenda').innerHTML = Object.keys(groups).sort().map(d=>{
+    const dd = new Date(d+'T00:00:00');
+    return '<div class="aday"><div class="h">'+dd.toLocaleDateString('en',{weekday:'short',day:'numeric',month:'short'})+
+      (d===today?' · today':'')+'</div>'+groups[d].map(pillHTML).join('')+'</div>';
+  }).join('') || '<div class="muted" style="padding:14px 0">Nothing scheduled ahead.</div>';
+
+  document.getElementById('uns-n').textContent = S.data.unscheduled.length+' with no post date yet';
+  document.getElementById('tray').innerHTML = S.data.unscheduled.map(v=>
+    '<span class="tp" data-id="'+v.id+'"><b>'+esc(v.key)+'</b> '+esc(v.title)+'</span>').join('')
+    || '<span class="muted">Everything has a date.</span>';
+}
+
+function findVideo(id){
+  if(!S.data) return null;
+  return S.data.videos.find(v=>v.id===id) || S.data.unscheduled.find(v=>v.id===id) || null;
+}
+
+function showDetail(v){
+  const d = document.getElementById('detail');
+  const days = v.date ? Math.round((Date.parse(v.date)-Date.parse(S.data.today))/86400000) : null;
+  d.innerHTML = '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'+
+    '<span style="font-size:15px;font-weight:600;color:var(--tx)">'+esc(v.title)+'</span>'+
+    (v.sponsor?'<span style="font-size:11px;background:var(--okbg);color:var(--accent);padding:2px 8px;border-radius:5px">Sponsor</span>':'')+
+    (v.url?'<a href="'+v.url+'" target="_blank" style="margin-left:auto;font-size:12px">Open in Notion ↗</a>':'')+
+    '</div><div style="display:flex;gap:22px;flex-wrap:wrap;font-size:12.5px;color:var(--tx2);margin-bottom:8px">'+
+    '<span>Creator <b style="color:var(--tx)">'+esc(v.creator)+'</b></span>'+
+    '<span>Stage <b style="color:var(--tx)">'+(v.stage===null?'—':v.stage+' · '+(STAGE[v.stage]||v.status))+'</b></span>'+
+    '<span>Editor <b style="color:var(--tx)">'+(esc(v.editor)||'unassigned')+'</b></span>'+
+    '<span>Posts <b style="color:var(--tx)">'+(v.date||'unscheduled')+(days!==null?' ('+(days<0?Math.abs(days)+'d ago':days+'d)'):'')+'</b></span>'+
+    '</div><div style="font-size:13px">'+WHY[v.risk]+'</div>';
+}
+
+document.addEventListener('click', e=>{
+  const chip = e.target.closest('.chip');
+  if(chip){ S.creator = chip.dataset.c; return render(); }
+  const more = e.target.closest('[data-more]');
+  if(more){ S.expanded[more.dataset.more]=true; return render(); }
+  const pill = e.target.closest('.pill, .tp, .today-row[data-id]');
+  if(pill){ const v = findVideo(pill.dataset.id); if(v) showDetail(v); return; }
+});
+
+document.getElementById('editorsel').addEventListener('change', e=>{
+  S.editor = e.target.value;
+  render();
+});
+
+document.getElementById('prev').onclick = ()=>{ S.month = new Date(S.month.getFullYear(), S.month.getMonth()-1, 1); render(); };
+document.getElementById('next').onclick = ()=>{ S.month = new Date(S.month.getFullYear(), S.month.getMonth()+1, 1); render(); };
+document.getElementById('todaybtn').onclick = ()=>{ const t=new Date(S.data.today+'T00:00:00'); S.month=new Date(t.getFullYear(),t.getMonth(),1); render(); };
+
+load(false);
+setInterval(()=>load(false), 20000);
+</script>
+</body>
+</html>
