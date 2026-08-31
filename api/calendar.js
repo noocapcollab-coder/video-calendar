@@ -14,7 +14,15 @@ const BOARDS = [
 
 const DATE_PROP = 'POST DATE';
 
+const TZ = 'Asia/Kolkata';
+
 const LOOKBACK_DAYS = 90;
+
+function todayInTZ() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+}
 
 export const config = { maxDuration: 60 };
 
@@ -161,8 +169,9 @@ export default async function handler(req, res) {
     return res.status(200).json(cache.data);
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  const since = new Date(Date.now() - LOOKBACK_DAYS * 86400000).toISOString().slice(0, 10);
+  const today = todayInTZ();
+  const since = new Date(Date.parse(today + 'T00:00:00Z') - LOOKBACK_DAYS * 86400000)
+    .toISOString().slice(0, 10);
   const videos = [];
   const errors = [];
 
