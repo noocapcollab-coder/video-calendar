@@ -159,8 +159,12 @@ async function load(fresh){
       ? '<div class="err"><b>'+j.errors.length+' board(s) failed to load.</b><br>'+j.errors.map(esc).join('<br>')+'</div>' : '';
     render();
   }catch(e){
-    document.getElementById('sync').textContent = 'offline — retrying';
-    document.getElementById('errbox').innerHTML = '<div class="err">Could not reach the API. '+esc(e.message)+'</div>';
+    if(S.data){
+      document.getElementById('sync').textContent = 'retrying — showing last synced data';
+    } else {
+      document.getElementById('sync').textContent = 'offline — retrying';
+      document.getElementById('errbox').innerHTML = '<div class="err">Could not reach the API. '+esc(e.message)+'</div>';
+    }
   }
 }
 
