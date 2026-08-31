@@ -14,6 +14,10 @@ const BOARDS = [
 
 const DATE_PROP = 'POST DATE';
 
+const LOOKBACK_DAYS = 90;
+
+export const config = { maxDuration: 60 };
+
 let cache = { at: 0, data: null };
 const TTL = 20000;
 
@@ -108,7 +112,8 @@ function riskOf(stage, status, dateStr, todayStr) {
   const days = Math.round(
     (Date.parse(dateStr + 'T00:00:00Z') - Date.parse(todayStr + 'T00:00:00Z')) / 86400000
   );
-  if (stage !== null && stage >= 10) {
+  const scheduled = /scheduled/i.test(status);
+  if (scheduled || (stage !== null && stage >= 10)) {
     return days < 0 ? 'late' : 'ready';
   }
   const need = leadTimeNeeded(stage);
@@ -117,11 +122,14 @@ function riskOf(stage, status, dateStr, todayStr) {
   return 'ok';
 }
 
-async function queryBoard(board) {
+async function queryBoard(board, since) {
   const out = [];
   let cursor = undefined;
-  for (let page = 0; page < 8; page++) {
-    const body = { page_size: 100 };
+  for (let page = 0; page < 5; page++) {
+    const body = {
+      page_size: 100,
+      filter: { property: DATE_PROP, date: { on_or_after: since } }
+    };
     if (cursor) body.start_cursor = cursor;
     const res = await fetch(NOTION + '/data_sources/' + board.ds + '/query', {
       method: 'POST',
@@ -154,12 +162,13 @@ export default async function handler(req, res) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  const since = new Date(Date.now() - LOOKBACK_DAYS * 86400000).toISOString().slice(0, 10);
   const videos = [];
   const errors = [];
 
   const results = await Promise.allSettled(
     BOARDS.map(async board => {
-      const rows = await queryBoard(board);
+      const rows = await queryBoard(board, since);
       return { board, rows };
     })
   );
@@ -196,19 +205,17 @@ export default async function handler(req, res) {
   }
 
   const scheduled = videos.filter(v => v.date);
-  const unscheduled = videos.filter(v => !v.date && (v.stage === null || v.stage < 12));
 
   const payload = {
     today,
+    since,
     generatedAt: new Date().toISOString(),
     creators: BOARDS.map(b => ({ creator: b.creator, key: b.key })),
     editors: Array.from(new Set(videos.map(v => v.editor).filter(Boolean))).sort(),
     videos: scheduled,
-    unscheduled,
     counts: {
       atRisk: scheduled.filter(v => v.risk === 'risk').length,
-      late: scheduled.filter(v => v.risk === 'late').length,
-      unscheduled: unscheduled.length
+      late: scheduled.filter(v => v.risk === 'late').length
     },
     errors
   };
