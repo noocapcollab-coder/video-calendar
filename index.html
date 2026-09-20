@@ -56,7 +56,9 @@ select{background:var(--panel);border:1px solid var(--line2);color:var(--tx);bor
 .today-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
 .today-row .num{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;border-radius:4px;padding:2px 7px;flex:none}
 .today-row .ttl{font-size:13.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.today-row .meta{margin-left:auto;font-size:12px;color:var(--tx2);white-space:nowrap;flex:none}
+.today-row .edt{margin-left:auto;font-size:12px;color:var(--tx3);white-space:nowrap;flex:none;text-transform:capitalize}
+.today-row .edt.none{color:var(--tx3);opacity:.6;font-style:italic}
+.today-row .meta{margin-left:18px;font-size:12px;color:var(--tx2);white-space:nowrap;flex:none;min-width:104px;text-align:right}
 .spon{font-size:10px;background:var(--okbg);color:var(--accent);padding:2px 7px;border-radius:4px;flex:none}
 .pill .s{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;flex:none}
 .pill .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -254,6 +256,8 @@ function renderDay(vids){
       '<span class="num" style="background:var('+RISKBG[v.risk]+');color:var('+RISKVAR[v.risk]+')">'+(v.stage===null?'\u2013':v.stage)+'</span>'+
       '<span class="ttl">'+esc(v.creator)+' \u00b7 '+esc(v.title)+'</span>'+
       (v.sponsor?'<span class="spon">Sponsor</span>':'')+
+      (v.editor?'<span class="edt">'+esc(v.editor.toLowerCase())+'</span>'
+               :'<span class="edt none">unassigned</span>')+
       '<span class="meta" style="color:var('+RISKVAR[v.risk]+')">'+verdict(v,isPast)+'</span>'+
       '</div>').join('');
   }
