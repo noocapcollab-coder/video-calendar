@@ -9,7 +9,8 @@ const BOARDS = [
   { creator: 'Duncan',        key: 'DU', ds: '328508e9-9dda-8186-b4ca-000bd212e84b' },
   { creator: 'Dmytro',        key: 'DM', ds: '36b508e9-9dda-8004-a37f-000b460c8c46' },
   { creator: 'David Iya',     key: 'DI', ds: '898508e9-9dda-8383-ad90-070f01618f5a' },
-  { creator: 'Nicole McCain', key: 'NM', ds: '25b449d2-35ba-4026-992e-39af9974b158' }
+  { creator: 'Nicole McCain', key: 'NM', ds: '25b449d2-35ba-4026-992e-39af9974b158' },
+  { creator: 'Emtech',        key: 'EM', ds: '328508e9-9dda-8000-b3c9-000b0d791507' }
 ];
 
 const DATE_PROP = 'POST DATE';
