@@ -30,6 +30,50 @@ export const config = { maxDuration: 60 };
 let cache = { at: 0, data: null };
 const TTL = 20000;
 
+// The "In edit now" section is internal. It is only returned when the request
+// carries ?k= matching INTERNAL_KEY, so editors on the plain URL never receive it.
+function isInternal(req) {
+  const key = process.env.INTERNAL_KEY;
+  const k = req.query && req.query.k;
+  return !!key && typeof k === 'string' && k === key;
+}
+
+// Stage 7 (In Edit) and 8 (Changes) both sit on an editor's desk.
+function buildInEdit(videos, allEditors) {
+  const map = {};
+  for (const v of videos) {
+    if (v.stage !== 7 && v.stage !== 8) continue;
+    const name = v.editor || 'UNASSIGNED';
+    (map[name] = map[name] || []).push({
+      id: v.id, url: v.url, key: v.key, creator: v.creator, title: v.title,
+      date: v.date, stage: v.stage, sponsor: v.sponsor
+    });
+  }
+  const editors = Object.keys(map)
+    .map(name => ({
+      name,
+      videos: map[name].sort((a, b) => (a.date || '9999') < (b.date || '9999') ? -1 : 1)
+    }))
+    .sort((a, b) => {
+      if (a.name === 'UNASSIGNED') return 1;
+      if (b.name === 'UNASSIGNED') return -1;
+      return b.videos.length - a.videos.length;
+    });
+  const busy = new Set(editors.map(e => e.name));
+  return {
+    editors,
+    idle: allEditors.filter(e => !busy.has(e)),
+    total: editors.reduce((n, e) => n + e.videos.length, 0)
+  };
+}
+
+function send(res, payload, internal, cacheState) {
+  res.setHeader('X-Cache', cacheState);
+  res.setHeader('Cache-Control', 'no-store');
+  if (!internal) return res.status(200).json(payload.pub);
+  return res.status(200).json(Object.assign({}, payload.pub, { inEdit: payload.inEdit }));
+}
+
 function headers() {
   return {
     'Authorization': 'Bearer ' + process.env.NOTION_TOKEN,
@@ -164,10 +208,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'NOTION_TOKEN is not set' });
   }
 
+  const internal = isInternal(req);
   const fresh = req.query && (req.query.fresh === '1' || req.query.fresh === 'true');
   if (!fresh && cache.data && Date.now() - cache.at < TTL) {
-    res.setHeader('X-Cache', 'hit');
-    return res.status(200).json(cache.data);
+    return send(res, cache.data, internal, 'hit');
   }
 
   const today = todayInTZ();
@@ -216,12 +260,14 @@ export default async function handler(req, res) {
 
   const scheduled = videos.filter(v => v.date);
 
-  const payload = {
+  const editorList = Array.from(new Set(videos.map(v => v.editor).filter(Boolean))).sort();
+
+  const pub = {
     today,
     since,
     generatedAt: new Date().toISOString(),
     creators: BOARDS.map(b => ({ creator: b.creator, key: b.key })),
-    editors: Array.from(new Set(videos.map(v => v.editor).filter(Boolean))).sort(),
+    editors: editorList,
     videos: scheduled,
     counts: {
       atRisk: scheduled.filter(v => v.risk === 'risk').length,
@@ -230,7 +276,7 @@ export default async function handler(req, res) {
     errors
   };
 
-  cache = { at: Date.now(), data: payload };
-  res.setHeader('X-Cache', 'miss');
-  return res.status(200).json(payload);
+  const data = { pub, inEdit: buildInEdit(videos, editorList) };
+  cache = { at: Date.now(), data };
+  return send(res, data, internal, 'miss');
 }
