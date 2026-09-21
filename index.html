@@ -48,6 +48,24 @@ select{background:var(--panel);border:1px solid var(--line2);color:var(--tx);bor
 .pill{font-size:10.5px;border-radius:4px;padding:3px 5px;margin-bottom:3px;display:flex;gap:4px;align-items:center;cursor:pointer;border:1px solid transparent}
 .today-panel{background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:14px 16px;margin-bottom:18px}
 .today-panel h2{margin:0 0 3px;font-size:15px;font-weight:600}
+.ie-panel{background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.ie-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.ie-head h2{margin:0;font-size:15px;font-weight:600}
+.ie-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.ie-card{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 11px}
+.ie-top{display:flex;align-items:baseline;gap:6px}
+.ie-name{font-size:13.5px;font-weight:600;color:var(--ready);text-transform:capitalize}
+.ie-name.none{color:var(--tx3);font-style:italic;text-transform:none}
+.ie-n{margin-left:auto;font-size:20px;font-weight:600;line-height:1}
+.ie-bar{height:3px;background:var(--line);border-radius:2px;margin:7px 0 8px}
+.ie-bar i{display:block;height:3px;border-radius:2px;background:var(--ready)}
+.ie-due{font-size:10.5px;margin-bottom:6px}
+.ie-row{display:flex;gap:5px;align-items:center;font-size:11px;padding:3px 0;border-top:1px solid var(--line);cursor:pointer}
+.ie-row .k{color:var(--tx2);font-weight:600;flex:none}
+.ie-row .t{color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ie-row .tag{font-size:9.5px;padding:0 5px;border-radius:3px;flex:none}
+.ie-row .d{margin-left:auto;flex:none;color:var(--tx3)}
+.ie-row .d.now{color:var(--risk)}
 .daynav{display:flex;align-items:center;gap:7px;margin-left:auto}
 .daynav button{background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit;font-size:13px;line-height:1.2}
 .daynav button:hover{border-color:var(--accent)}
@@ -98,6 +116,8 @@ a{color:var(--accent)}
 </div>
 
 <div id="errbox"></div>
+
+<div class="ie-panel" id="iepanel" style="display:none"></div>
 
 <div class="today-panel" id="todaypanel"></div>
 
@@ -158,7 +178,11 @@ const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 
 async function load(fresh){
   try{
-    const r = await fetch('/api/calendar'+(fresh?'?fresh=1':''));
+    const q = new URLSearchParams();
+    if(fresh) q.set('fresh','1');
+    const k = new URLSearchParams(location.search).get('k');
+    if(k) q.set('k',k);
+    const r = await fetch('/api/calendar'+(q.toString()?'?'+q.toString():''));
     const j = await r.json();
     if(j.error) throw new Error(j.error);
     S.data = j;
@@ -232,6 +256,55 @@ function verdict(v, isPast){
   return label;
 }
 
+function shortDate(ds, today){
+  if(!ds) return 'no date';
+  if(ds===today) return 'today';
+  if(ds===shiftDay(today,1)) return 'tomorrow';
+  if(ds<today) return Math.round((Date.parse(today)-Date.parse(ds))/86400000)+'d late';
+  return new Date(ds+'T00:00:00').toLocaleDateString('en',{day:'numeric',month:'short'});
+}
+
+function renderInEdit(){
+  const box = document.getElementById('iepanel');
+  const ie = S.data && S.data.inEdit;
+  if(!ie){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='';
+  const today = S.data.today;
+  const eds = ie.editors.filter(e=>e.name!=='UNASSIGNED');
+  const max = Math.max(1, ...ie.editors.map(e=>e.videos.length));
+  let html = '<div class="ie-head"><h2>In edit now</h2>'+
+    '<span class="muted">'+eds.length+' editor'+(eds.length===1?'':'s')+' · '+ie.total+' video'+(ie.total===1?'':'s')+' in edit or changes</span>'+
+    '<span class="muted" style="margin-left:auto;font-size:11px">internal only</span></div>';
+  if(!ie.editors.length){
+    html += '<div class="muted">Nothing is in edit right now.</div>';
+  } else {
+    html += '<div class="ie-grid">'+ie.editors.map(e=>{
+      const none = e.name==='UNASSIGNED';
+      const due = e.videos.filter(v=>v.date && v.date<=today).length;
+      return '<div class="ie-card"><div class="ie-top">'+
+        '<span class="ie-name'+(none?' none':'')+'">'+(none?'unassigned':esc(e.name.toLowerCase()))+'</span>'+
+        '<span class="ie-n">'+e.videos.length+'</span></div>'+
+        '<div class="ie-bar"><i style="width:'+(e.videos.length/max*100)+'%'+(none?';background:var(--tx3)':'')+'"></i></div>'+
+        '<div class="ie-due" style="color:'+(due?'var(--risk)':'var(--tx3)')+'">'+(due?due+' due today or late':'none due today')+'</div>'+
+        e.videos.map(v=>{
+          const d = shortDate(v.date,today);
+          const hot = v.date && v.date<=today;
+          return '<div class="ie-row" data-id="'+v.id+'">'+
+            '<span class="k">'+esc(v.key)+'</span>'+
+            '<span class="t">'+esc(v.title)+'</span>'+
+            (v.stage===8?'<span class="tag" style="background:var(--tightbg);color:var(--tight)">changes</span>':'')+
+            (v.sponsor?'<span class="tag" style="background:var(--okbg);color:var(--accent)">S</span>':'')+
+            '<span class="d'+(hot?' now':'')+'">'+d+'</span></div>';
+        }).join('')+'</div>';
+    }).join('')+'</div>';
+  }
+  if(ie.idle && ie.idle.length){
+    html += '<div class="muted" style="margin-top:10px;font-size:11.5px">Nothing in edit: <span style="color:var(--tx2);text-transform:capitalize">'+
+      ie.idle.map(n=>esc(n.toLowerCase())).join(', ')+'</span></div>';
+  }
+  box.innerHTML = html;
+}
+
 function renderDay(vids){
   const today = S.data.today;
   const ds = S.day;
@@ -278,6 +351,7 @@ function render(){
   renderChips();
   const vids = visible();
   const today = S.data.today;
+  renderInEdit();
   renderDay(vids);
   const byDate = {};
   vids.forEach(v=>{ (byDate[v.date] = byDate[v.date]||[]).push(v); });
@@ -355,6 +429,12 @@ document.addEventListener('click', e=>{
   if(chip){ S.creator = chip.dataset.c; return render(); }
   const more = e.target.closest('[data-more]');
   if(more){ S.expanded[more.dataset.more]=true; return render(); }
+  const ier = e.target.closest('.ie-row[data-id]');
+  if(ier){
+    const v = findVideo(ier.dataset.id);
+    if(v) return showDetail(v);
+    return;
+  }
   const pill = e.target.closest('.pill, .today-row[data-id]');
   if(pill){ const v = findVideo(pill.dataset.id); if(v) showDetail(v); return; }
   const cell = e.target.closest('.cell[data-day]');
