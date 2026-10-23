@@ -451,7 +451,8 @@ document.getElementById('next').onclick = ()=>{ S.month = new Date(S.month.getFu
 document.getElementById('todaybtn').onclick = ()=>{ const t=new Date(S.data.today+'T00:00:00'); S.month=new Date(t.getFullYear(),t.getMonth(),1); render(); };
 
 load(false);
-setInterval(()=>load(false), 20000);
+setInterval(()=>{ if(!document.hidden) load(false); }, 60000);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) load(false); });
 </script>
 </body>
 </html>

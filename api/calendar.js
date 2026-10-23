@@ -28,7 +28,26 @@ function todayInTZ() {
 export const config = { maxDuration: 60 };
 
 let cache = { at: 0, data: null };
-const TTL = 20000;
+const TTL = 60000;
+
+// Last good rows per board, so a Notion hiccup shows slightly old data
+// instead of an empty calendar with a red error box.
+const lastGood = {};
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Notion allows about 3 requests a second per integration, and this token is
+// shared with other NOOCAP tools. On a 429 we wait what Notion asks and retry.
+async function notionPost(url, body) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, { method: 'POST', headers: headers(), body });
+    if (res.status !== 429 && res.status < 500) return res;
+    if (attempt >= 4) return res;
+    const ra = parseFloat(res.headers.get('retry-after'));
+    const wait = Number.isFinite(ra) ? ra * 1000 : 800 * Math.pow(2, attempt);
+    await sleep(Math.min(wait, 8000) + Math.random() * 300);
+  }
+}
 
 // The "In edit now" section is internal. It is only returned when the request
 // carries ?k= matching INTERNAL_KEY, so editors on the plain URL never receive it.
@@ -69,7 +88,11 @@ function buildInEdit(videos, allEditors) {
 
 function send(res, payload, internal, cacheState) {
   res.setHeader('X-Cache', cacheState);
-  res.setHeader('Cache-Control', 'no-store');
+  // Shared edge cache: every viewer gets the same copy for a minute, so ten
+  // open tabs cost Notion one load instead of ten.
+  res.setHeader('Cache-Control', cacheState === 'fresh' || payload.pub.errors.length
+    ? 'no-store'
+    : 'public, s-maxage=60, stale-while-revalidate=300');
   if (!internal) return res.status(200).json(payload.pub);
   return res.status(200).json(Object.assign({}, payload.pub, { inEdit: payload.inEdit }));
 }
@@ -184,11 +207,7 @@ async function queryBoard(board, since) {
       filter: { property: DATE_PROP, date: { on_or_after: since } }
     };
     if (cursor) body.start_cursor = cursor;
-    const res = await fetch(NOTION + '/data_sources/' + board.ds + '/query', {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify(body)
-    });
+    const res = await notionPost(NOTION + '/data_sources/' + board.ds + '/query', JSON.stringify(body));
     if (!res.ok) {
       const text = await res.text();
       throw new Error(board.creator + ' ' + res.status + ' ' + text.slice(0, 200));
@@ -220,16 +239,29 @@ export default async function handler(req, res) {
   const videos = [];
   const errors = [];
 
-  const results = await Promise.allSettled(
-    BOARDS.map(async board => {
-      const rows = await queryBoard(board, since);
-      return { board, rows };
-    })
-  );
+  // Two boards at a time instead of all nine at once, so we stay under
+  // Notion's rate limit.
+  const results = [];
+  for (let i = 0; i < BOARDS.length; i += 2) {
+    const batch = await Promise.allSettled(
+      BOARDS.slice(i, i + 2).map(async board => {
+        const rows = await queryBoard(board, since);
+        lastGood[board.ds] = rows;
+        return { board, rows };
+      })
+    );
+    batch.forEach((r, j) => {
+      const board = BOARDS[i + j];
+      if (r.status === 'rejected' && lastGood[board.ds]) {
+        results.push({ status: 'fulfilled', value: { board, rows: lastGood[board.ds] } });
+      } else results.push(r);
+    });
+  }
 
   for (const r of results) {
     if (r.status === 'rejected') {
-      errors.push(String(r.reason && r.reason.message ? r.reason.message : r.reason));
+      const msg = String(r.reason && r.reason.message ? r.reason.message : r.reason);
+      errors.push(/ 429 /.test(msg) ? msg.split(' 429 ')[0] + ': Notion is busy, retrying shortly' : msg);
       continue;
     }
     const { board, rows } = r.value;
@@ -277,6 +309,6 @@ export default async function handler(req, res) {
   };
 
   const data = { pub, inEdit: buildInEdit(videos, editorList) };
-  cache = { at: Date.now(), data };
-  return send(res, data, internal, 'miss');
+  if (!errors.length || !cache.data) cache = { at: Date.now(), data };
+  return send(res, data, internal, fresh ? 'fresh' : 'miss');
 }
