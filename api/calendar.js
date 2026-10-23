@@ -1,3 +1,5 @@
+import { snapshotRows } from './_snapshot.js';
+
 const NOTION = 'https://api.notion.com/v1';
 const VERSION = '2025-09-03';
 
@@ -198,7 +200,10 @@ function riskOf(stage, status, dateStr, todayStr) {
   return 'ok';
 }
 
-async function queryBoard(board, since) {
+async function queryBoard(board, since, fresh) {
+  // The shared snapshot already has this board: use it and leave Notion alone
+  const snap = fresh ? null : await snapshotRows(board.ds);
+  if (snap) return snap.filter(row => { const d = readDate(row.properties || {}); return d && d >= since; });
   const out = [];
   let cursor = undefined;
   for (let page = 0; page < 5; page++) {
@@ -245,7 +250,7 @@ export default async function handler(req, res) {
   for (let i = 0; i < BOARDS.length; i += 2) {
     const batch = await Promise.allSettled(
       BOARDS.slice(i, i + 2).map(async board => {
-        const rows = await queryBoard(board, since);
+        const rows = await queryBoard(board, since, fresh);
         lastGood[board.ds] = rows;
         return { board, rows };
       })
