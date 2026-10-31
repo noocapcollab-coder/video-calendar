@@ -12,7 +12,8 @@ const BOARDS = [
   { creator: 'Dmytro',        key: 'DM', ds: '36b508e9-9dda-8004-a37f-000b460c8c46' },
   { creator: 'David Iya',     key: 'DI', ds: '898508e9-9dda-8383-ad90-070f01618f5a' },
   { creator: 'Nicole McCain', key: 'NM', ds: '25b449d2-35ba-4026-992e-39af9974b158' },
-  { creator: 'Emtech',        key: 'EM', ds: '328508e9-9dda-8000-b3c9-000b0d791507' }
+  { creator: 'Emtech',        key: 'EM', ds: '328508e9-9dda-8000-b3c9-000b0d791507' },
+  { creator: 'AI Learns',     key: 'AL', ds: 'af9dcf07-9aef-4ee1-b627-bbc904dfe227' }
 ];
 
 const DATE_PROP = 'POST DATE';
